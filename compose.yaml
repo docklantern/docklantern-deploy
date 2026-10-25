@@ -29,7 +29,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=web
-      - traefik.http.routers.docklantern.rule=Host(\`${DOCKLANTERN_DOMAIN:?set dashboard domain}\`)
+      - traefik.http.routers.docklantern.rule=Host(`${DOCKLANTERN_DOMAIN:?set dashboard domain}`)
       - traefik.http.routers.docklantern.entrypoints=websecure
       - traefik.http.routers.docklantern.tls=true
       # Do NOT set tls.certresolver=letsencrypt unless that resolver really exists.
