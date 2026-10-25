@@ -2,6 +2,8 @@
 
 These commands assume you have completed [the README](../README.md) and are in `~/deployments/docklantern`. Keep a current copy of the password and a verified off-host database backup.
 
+**Using registered Compose projects?** If you enabled the optional, local `compose.projects.yaml` overlay described in [monitoring-first-run.md](monitoring-first-run.md), append `-f compose.projects.yaml` to **every** `docker compose` command on this page, after the two existing `-f` flags. This especially matters for `up -d` and `run`: otherwise you could recreate DockLantern without its read-only source mounts and `-roots` allowlist. The overlay is excluded from Git and must be maintained on the host.
+
 ## Common commands
 
 Show the services managed by this Compose project:
