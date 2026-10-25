@@ -83,6 +83,18 @@ Discovering running containers and registering projects are **different actions*
 
 `/readyz` checks worker heartbeats. A temporary registry or Docker error may cause a `503` without exiting the HTTP process. Inspect logs and current state; the normal Docker Compose restart policy doesn't automatically restart a container solely because its healthcheck failed.
 
+## CSRF validation failed when submitting the registration form
+
+This was reproduced during beta testing behind Traefik. On a normal HTML form POST, Chrome submitted `Origin: null` while `Sec-Fetch-Site: same-origin` because the Settings page sent `Referrer-Policy: no-referrer`. DockLantern correctly rejected the origin even though the CSRF token was present.
+
+Use **`Referrer-Policy: same-origin`** in your Traefik security middleware and the application Settings page (fixed in application source for the next beta). After updating the label, validate the Compose configuration and recreate **only** DockLantern. Refresh the Settings page and retry. Check in Chrome Developer Tools that `GET /settings` responds with **`Referrer-Policy: same-origin`** and the POST sends your actual same-origin HTTPS `Origin`.
+
+Do **not** disable CSRF validation, turn off CSP, or permit `Origin: null` in the application.
+
+## Project registered, but files not available after restart
+
+The optional `compose.projects.yaml` overlay must be included in **every** future Compose invocation that recreates DockLantern. Its mounts and `-roots` allowlist are required to validate project registrations. See [monitoring-first-run.md](monitoring-first-run.md). Confirm the directory and file paths match the original Docker Compose labels exactly and are mounted read-only.
+
 ## Never use destructive cleanup as a quick fix
 
 **Do not run `docker compose down -v`** unless you've intentionally chosen to delete SQLite state. Also don't delete networks that other containers use. The running Traefik and unrelated applications are managed independently.

@@ -1,0 +1,37 @@
+# Optional example for registering two existing Compose projects for monitoring.
+# Copy to compose.projects.yaml (gitignored) and set the host's REAL absolute paths
+# in your local .env. Do not commit host-specific paths, credentials or .env files.
+#
+# Include LAST: docker compose -f compose.yaml -f compose.discovery.yaml
+#   -f compose.projects.yaml config -q
+#
+# Important: The source and target are IDENTICAL absolute paths because DockLantern
+# validates Compose project files against its explicit -roots allowlist.
+services:
+  docklantern:
+    volumes:
+      - type: bind
+        source: ${HELLO_PY_PROJECT_DIR:?set HELLO_PY_PROJECT_DIR in local .env}
+        target: ${HELLO_PY_PROJECT_DIR:?set HELLO_PY_PROJECT_DIR in local .env}
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HELLO_JS_PROJECT_DIR:?set HELLO_JS_PROJECT_DIR in local .env}
+        target: ${HELLO_JS_PROJECT_DIR:?set HELLO_JS_PROJECT_DIR in local .env}
+        read_only: true
+        bind:
+          create_host_path: false
+    # Compose replaces the earlier command array; repeat all discovery flags.
+    command:
+      - -mode
+      - serve
+      - -db
+      - /data/docklantern.db
+      - -listen
+      - 0.0.0.0:8787
+      - -run-monitor
+      - -scan-every
+      - 60s
+      - -roots
+      - ${HELLO_PY_PROJECT_DIR:?set HELLO_PY_PROJECT_DIR in local .env},${HELLO_JS_PROJECT_DIR:?set HELLO_JS_PROJECT_DIR in local .env}
