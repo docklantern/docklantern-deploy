@@ -1,0 +1,51 @@
+# Optional read-only Docker inventory via an isolated socket proxy.
+# Apply together with compose.yaml (see README).
+services:
+  docklantern:
+    environment:
+      DOCKLANTERN_DOCKER_PROXY_URL: http://docker-socket-proxy:2375
+    command: ["-mode", "serve", "-db", "/data/docklantern.db", "-listen", "0.0.0.0:8787", "-run-monitor", "-scan-every", "60s"]
+    networks:
+      - web
+      - docker-discovery
+      # Existing, host-provisioned IPv6 egress network (see README).
+      - docklantern-ipv6-egress
+    depends_on:
+      - docker-socket-proxy
+
+  docker-socket-proxy:
+    build:
+      context: ./socket-proxy
+      dockerfile: Dockerfile
+    image: docklantern-socket-proxy:patched
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      POST: "0"
+      EVENTS: "0"
+      NETWORKS: "0"
+      INFO: "0"
+      SERVICES: "0"
+      VOLUMES: "0"
+      EXEC: "0"
+      SYSTEM: "0"
+    volumes:
+      # A read-only bind mount alone does NOT prevent Docker API writes;
+      # POST=0 and private networking help restrict access.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-discovery
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+    # Intentionally NO ports: Never expose TCP 2375 publicly.
+
+networks:
+  docker-discovery:
+    internal: true
+  docklantern-ipv6-egress:
+    external: true
