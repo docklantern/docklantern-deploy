@@ -1,0 +1,53 @@
+name: Validate Docker Compose deployment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout configuration
+        uses: actions/checkout@v4
+      - name: Prepare safe local test inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          mkdir -p secrets
+          printf '%s\n' 'temporary-ci-password-not-a-real-secret-12345' > secrets/admin_password.txt
+      - name: Verify Docker Compose is available
+        run: docker compose version
+      - name: Validate base and discovery overlay
+        run: |
+          set -euo pipefail
+          docker compose -f compose.yaml config -q
+          docker compose -f compose.yaml -f compose.discovery.yaml config -q
+      - name: Check exposed ports and security invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f compose.yaml -f compose.discovery.yaml config --format json > /tmp/docklantern-compose.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          c = json.loads(Path('/tmp/docklantern-compose.json').read_text())
+          services = c['services']
+          assert set(services) == {'docklantern', 'docker-socket-proxy'}
+          assert not services['docklantern'].get('ports'), 'DockLantern must not publish port 8787'
+          assert not services['docker-socket-proxy'].get('ports'), 'Docker proxy must not publish port 2375'
+          assert services['docklantern']['read_only'] is True
+          assert 'ALL' in services['docklantern']['cap_drop']
+          assert services['docker-socket-proxy']['environment']['POST'] == '0'
+          assert c['networks']['docker-discovery']['internal'] is True
+          assert c['networks']['web']['external'] is True
+          assert c['networks']['docklantern-ipv6-egress']['external'] is True
+          assert services['docklantern']['environment']['DOCKLANTERN_ADMIN_PASSWORD_FILE'] == '/run/secrets/admin_password'
+          print('Compose validation and security checks passed')
+          PY
