@@ -18,6 +18,9 @@ backups/
 *.sqlite-shm
 *.log
 
+# Per-host project registration overlay (local paths only)
+compose.projects.yaml
+
 # Local tools
 .DS_Store
 .vscode/
