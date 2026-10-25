@@ -28,11 +28,12 @@ jobs:
           set -euo pipefail
           docker compose -f compose.yaml config -q
           docker compose -f compose.yaml -f compose.discovery.yaml config -q
+          docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml config -q
       - name: Check exposed ports and security invariants
         shell: bash
         run: |
           set -euo pipefail
-          docker compose -f compose.yaml -f compose.discovery.yaml config --format json > /tmp/docklantern-compose.json
+          docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml config --format json > /tmp/docklantern-compose.json
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -49,5 +50,11 @@ jobs:
           assert c['networks']['web']['external'] is True
           assert c['networks']['docklantern-ipv6-egress']['external'] is True
           assert services['docklantern']['environment']['DOCKLANTERN_ADMIN_PASSWORD_FILE'] == '/run/secrets/admin_password'
+          assert services['docklantern']['labels']['traefik.http.middlewares.docklantern-security.headers.referrerPolicy'] == 'same-origin'
+          mounts = services['docklantern']['volumes']
+          for directory in ('/srv/apps/hello-py', '/srv/apps/hello-js'):
+            assert any(m['source'] == directory and m['target'] == directory and m.get('read_only') for m in mounts), f'missing read-only source mount: {directory}'
+          command = services['docklantern']['command']
+          assert '-roots' in command and command[command.index('-roots') + 1] == '/srv/apps/hello-py,/srv/apps/hello-js'
           print('Compose validation and security checks passed')
           PY
