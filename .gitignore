@@ -1,0 +1,24 @@
+# Credentials and per-host configuration. Never commit these.
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+
+# SQLite and generated backups
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+
+# Local tools
+.DS_Store
+.vscode/
+.idea/
