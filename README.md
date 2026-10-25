@@ -21,6 +21,7 @@ This beta is **monitoring-only**: it must not automatically pull, update, or rec
 .
 ├── compose.yaml                 # DockLantern, auth, healthcheck, TLS route, SQLite volume
 ├── compose.discovery.yaml       # Optional Docker discovery via a restricted proxy
+├── compose.projects.example.yaml # Copy locally for read-only Compose source access
 ├── socket-proxy/
 │   └── Dockerfile               # Builds the patched socket-proxy image
 ├── .env.example                 # Safe configuration template; copy to .env
@@ -29,6 +30,7 @@ This beta is **monitoring-only**: it must not automatically pull, update, or rec
 │   └── validate-compose.yml     # Validates both Compose configurations on PRs
 └── docs/
     ├── host-prerequisites.md    # Docker, Traefik, DNS/TLS, external networks
+    ├── monitoring-first-run.md # Register Compose apps and verify digest monitoring
     ├── operations.md            # Start, stop, upgrade, backup and restore
     └── troubleshooting.md       # Common failures and actual fixes
 ```
@@ -183,7 +185,30 @@ Open `https://docklantern.example.com/` in your browser, using your actual hostn
 
 Confirm you can see running Docker containers in the inventory. They may be **discovered but unregistered**. Registration is an explicit step and stored in SQLite; a fresh database will **not** automatically restore previously registered projects.
 
-At this point the monitoring-only beta deployment is ready. Follow the application's registration guide before enabling monitoring policies.
+At this point the monitoring-only beta deployment is ready. **Container discovery is not Compose project registration.** To register and monitor an existing Compose project, you must also mount its Compose files into DockLantern and allowlist the same absolute source paths. See [Step-by-step registration and monitoring](docs/monitoring-first-run.md).
+
+### Step 9 — Optionally allow existing Compose projects to be registered
+
+Do this only after the baseline dashboard works. The project registration overlay is **optional** and kept local so no VPS directory paths are committed.
+
+```bash
+cp compose.projects.example.yaml compose.projects.yaml
+nano .env
+```
+
+In your local `.env`, update `HELLO_PY_PROJECT_DIR` and `HELLO_JS_PROJECT_DIR` to the actual **absolute** directories for those projects. They must exist on the server and contain the original Compose file and any necessary environment files. Review each directory for secrets before mounting it read-only. See [the complete beginner walkthrough](docs/monitoring-first-run.md).
+
+Then validate and recreate **only DockLantern**, including the third overlay:
+
+```bash
+docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml config -q
+docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml up -d --no-deps docklantern
+docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml ps
+```
+
+**Important:** From this point on, include `-f compose.projects.yaml` in future `docker compose` commands that recreate the DockLantern application; omitting it may remove the read-only mounts and `-roots` allowlist. The original container inventory will continue to work, but registrations and subsequent file validation may not.
+
+This project's Traefik configuration uses `Referrer-Policy: same-origin`, not `no-referrer`. The earlier value caused Chrome to send `Origin: null` on HTML form submissions, which DockLantern correctly rejected as a CSRF failure. The browser workaround was confirmed on the test deployment and is being incorporated in the application code.
 
 ## What persists (and what doesn't)
 
@@ -194,6 +219,7 @@ The `web` network, IPv6 egress network, DNS records, Traefik configuration, and 
 ## Next steps and useful docs
 
 - [Host prerequisites and network considerations](docs/host-prerequisites.md)
+- [Register two Compose apps and validate scheduled registry monitoring](docs/monitoring-first-run.md)
 - [Normal operations, upgrading, and backing up SQLite](docs/operations.md)
 - [Troubleshooting the actual issues seen during setup](docs/troubleshooting.md)
 
