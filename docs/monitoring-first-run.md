@@ -1,6 +1,6 @@
 # First monitored Compose service — label-based onboarding (beta.3)
 
-**Release status:** This workflow is available in **DockLantern v0.1.0-beta.3 or newer, once that image is published and explicitly installed**. The Compose deployment currently pins **v0.1.0-beta.2**, which requires [legacy source registration](legacy-manual-registration.md). Do not assume the new feature works with the beta.2 image.
+**Release status:** **v0.1.0-beta.3 is published**, and this deployment repository now pins its verified immutable image manifest. If you have not yet recreated DockLantern using the updated Compose configuration, check the running image before using these steps. Upgraded legacy beta.2 registrations remain supported via the [legacy source registration guide](legacy-manual-registration.md).
 
 This guide assumes a working DockLantern deployment with **`compose.yaml` + `compose.discovery.yaml`**, a private Docker socket proxy, periodic discovery (`-scan-every 60s`) and a running registry monitor. Follow the [README](../README.md) for host/network/TLS prerequisites. All operations in this guide are on the **existing application Compose project**, not in the DockLantern deployment directory.
 
