@@ -8,12 +8,12 @@ This repository holds **deployment configuration**, not DockLantern's source cod
 
 ## What you will deploy
 
-- **DockLantern**: web dashboard and registry monitor, using the pinned `davidslusser/docklantern:v0.1.0-beta.2` image.
+- **DockLantern**: web dashboard and registry monitor. This repository **currently pins** `davidslusser/docklantern:v0.1.0-beta.2` until the reviewed beta.3 image is published and explicitly approved for upgrade. Do not point Compose at a nonexistent beta.3 tag.
 - **Docker socket proxy**: a separate container that permits limited, read-only Docker API requests for container discovery.
 - **SQLite database**: durable application state stored in a Docker named volume.
 - **Traefik route**: HTTPS access through an **already-running** reverse proxy. This repository does not deploy or restart Traefik.
 
-This beta is **monitoring-only**: it must not automatically pull, update, or recreate other services. Discovered containers do not become registered projects automatically.
+Both betas are **monitoring-only**: they must not automatically pull, update, or recreate other services. Beta.2 requires manual source registration to configure watches; **beta.3 (when installed)** automatically enrolls Compose services carrying `com.docklantern.monitor: "true"`, without adding original Compose source mounts, project registration, or DockLantern configuration changes. Unlabeled services remain opt-out by default.
 
 ## Files and folders
 
@@ -21,7 +21,7 @@ This beta is **monitoring-only**: it must not automatically pull, update, or rec
 .
 ├── compose.yaml                 # DockLantern, auth, healthcheck, TLS route, SQLite volume
 ├── compose.discovery.yaml       # Optional Docker discovery via a restricted proxy
-├── compose.projects.example.yaml # Copy locally for read-only Compose source access
+├── compose.projects.example.yaml # Legacy beta.2/manual registration only (optional)
 ├── socket-proxy/
 │   └── Dockerfile               # Builds the patched socket-proxy image
 ├── .env.example                 # Safe configuration template; copy to .env
@@ -30,8 +30,9 @@ This beta is **monitoring-only**: it must not automatically pull, update, or rec
 │   └── validate-compose.yml     # Validates both Compose configurations on PRs
 └── docs/
     ├── host-prerequisites.md    # Docker, Traefik, DNS/TLS, external networks
-    ├── monitoring-first-run.md # Register Compose apps and verify digest monitoring
+    ├── monitoring-first-run.md # Beta.3 label-based monitoring walkthrough
     ├── operations.md            # Start, stop, upgrade, backup and restore
+    ├── legacy-manual-registration.md # Original beta.2 source-mount registration walkthrough
     └── troubleshooting.md       # Common failures and actual fixes
 ```
 
@@ -183,20 +184,22 @@ Verify the certificate is valid. A `401 Unauthorized` from the login-protected h
 
 Open `https://docklantern.example.com/` in your browser, using your actual hostname. Log in with the username from `.env` (default `admin`) and the new password saved in Step 4.
 
-Confirm you can see running Docker containers in the inventory. They may be **discovered but unregistered**. Registration is an explicit step and stored in SQLite; a fresh database will **not** automatically restore previously registered projects.
+Confirm you can see running Docker containers in the inventory. They may be **discovered but unregistered**. A newly initialized database does not magically restore registrations or history from an earlier Docker volume.
 
-At this point the monitoring-only beta deployment is ready. **Container discovery is not Compose project registration.** To register and monitor an existing Compose project, you must also mount its Compose files into DockLantern and allowlist the same absolute source paths. See [Step-by-step registration and monitoring](docs/monitoring-first-run.md).
+With the **currently pinned beta.2 image**, legacy source registration and per-project read-only mounts are still needed to create watches; follow the [beta.2 manual guide](docs/legacy-manual-registration.md).
 
-### Step 9 — Optionally allow existing Compose projects to be registered
+Once a reviewed **beta.3** image is explicitly installed, **monitoring-only** enrollment needs no source files or registration: add `com.docklantern.monitor: "true"` to the *target application's* Compose service, redeploy only that service, and let the existing discovery scanner pick it up. No DockLantern Compose changes or DockLantern restart. See [beta.3 label-first walkthrough](docs/monitoring-first-run.md).
 
-Do this only after the baseline dashboard works. The project registration overlay is **optional** and kept local so no VPS directory paths are committed.
+### Step 9 — Optional legacy source registration (beta.2 compatibility)
+
+**Only do this if you are using beta.2's manual source-registration workflow or maintaining existing legacy source registrations.** Beta.3 label-based monitoring does not need this overlay. Keep an existing overlay when upgrading until you have separately validated what other legacy registrations require. The file is local so no VPS directory paths are committed.
 
 ```bash
 cp compose.projects.example.yaml compose.projects.yaml
 nano .env
 ```
 
-In your local `.env`, update `HELLO_PY_PROJECT_DIR` and `HELLO_JS_PROJECT_DIR` to the actual **absolute** directories for those projects. They must exist on the server and contain the original Compose file and any necessary environment files. Review each directory for secrets before mounting it read-only. See [the complete beginner walkthrough](docs/monitoring-first-run.md).
+In your local `.env`, update `HELLO_PY_PROJECT_DIR` and `HELLO_JS_PROJECT_DIR` to the actual **absolute** directories for those projects. They must exist on the server and contain the original Compose file and any necessary environment files. Review each directory for secrets before mounting it read-only. See [the legacy manual walkthrough](docs/legacy-manual-registration.md).
 
 Then validate and recreate **only DockLantern**, including the third overlay:
 
@@ -219,7 +222,8 @@ The `web` network, IPv6 egress network, DNS records, Traefik configuration, and 
 ## Next steps and useful docs
 
 - [Host prerequisites and network considerations](docs/host-prerequisites.md)
-- [Register two Compose apps and validate scheduled registry monitoring](docs/monitoring-first-run.md)
+- [Beta.3: opt in a Compose app with one Docker service label](docs/monitoring-first-run.md) — available after beta.3 is published and installed
+- [Beta.2: source-based registration and legacy policy management](docs/legacy-manual-registration.md)
 - [Normal operations, upgrading, and backing up SQLite](docs/operations.md)
 - [Troubleshooting the actual issues seen during setup](docs/troubleshooting.md)
 
