@@ -1,0 +1,9 @@
+# Example target application, not the DockLantern stack.
+# Only applicable once an approved beta.3 image has been installed.
+services:
+  web:
+    image: davidslusser/hello-js:latest
+    labels:
+      com.docklantern.monitor: "true"
+      # Optional (omit to inherit the global default, initially 5m)
+      com.docklantern.interval: "10m"
