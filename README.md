@@ -8,7 +8,7 @@ This repository holds **deployment configuration**, not DockLantern's source cod
 
 ## What you will deploy
 
-- **DockLantern**: web dashboard and registry monitor. This repository **currently pins** `davidslusser/docklantern:v0.1.0-beta.2` until the reviewed beta.3 image is published and explicitly approved for upgrade. Do not point Compose at a nonexistent beta.3 tag.
+- **DockLantern**: web dashboard and registry monitor, pinned to the published **v0.1.0-beta.3** Docker Hub image plus its verified immutable multi-platform manifest digest. See the [beta.3 release](https://github.com/docklantern/docklantern/releases/tag/v0.1.0-beta.3).
 - **Docker socket proxy**: a separate container that permits limited, read-only Docker API requests for container discovery.
 - **SQLite database**: durable application state stored in a Docker named volume.
 - **Traefik route**: HTTPS access through an **already-running** reverse proxy. This repository does not deploy or restart Traefik.
@@ -186,9 +186,9 @@ Open `https://docklantern.example.com/` in your browser, using your actual hostn
 
 Confirm you can see running Docker containers in the inventory. They may be **discovered but unregistered**. A newly initialized database does not magically restore registrations or history from an earlier Docker volume.
 
-With the **currently pinned beta.2 image**, legacy source registration and per-project read-only mounts are still needed to create watches; follow the [beta.2 manual guide](docs/legacy-manual-registration.md).
+The current deployment pins **beta.3**, which supports automatic monitoring enrollment from Docker labels or the GUI. Existing beta.2 source registrations and monitoring history remain supported after a compatible SQLite migration; follow the [legacy registration guide](docs/legacy-manual-registration.md) only when maintaining those registrations.
 
-Once a reviewed **beta.3** image is explicitly installed, **monitoring-only** enrollment needs no source files or registration: add `com.docklantern.monitor: "true"` to the *target application's* Compose service, redeploy only that service, and let the existing discovery scanner pick it up. No DockLantern Compose changes or DockLantern restart. See [beta.3 label-first walkthrough](docs/monitoring-first-run.md).
+With **beta.3** installed, **monitoring-only** enrollment needs no source files or registration: add `com.docklantern.monitor: "true"` to the *target application's* Compose service, redeploy only that service, and let the existing discovery scanner pick it up. No DockLantern Compose changes or DockLantern restart. See [beta.3 label-first walkthrough](docs/monitoring-first-run.md).
 
 ### Step 9 — Optional legacy source registration (beta.2 compatibility)
 
@@ -222,7 +222,7 @@ The `web` network, IPv6 egress network, DNS records, Traefik configuration, and 
 ## Next steps and useful docs
 
 - [Host prerequisites and network considerations](docs/host-prerequisites.md)
-- [Beta.3: opt in a Compose app with one Docker service label](docs/monitoring-first-run.md) — available after beta.3 is published and installed
+- [Beta.3: opt in a Compose app with one Docker service label](docs/monitoring-first-run.md) — included in the published beta.3 release
 - [Beta.2: source-based registration and legacy policy management](docs/legacy-manual-registration.md)
 - [Normal operations, upgrading, and backing up SQLite](docs/operations.md)
 - [Troubleshooting the actual issues seen during setup](docs/troubleshooting.md)
