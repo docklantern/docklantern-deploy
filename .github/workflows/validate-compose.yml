@@ -29,6 +29,7 @@ jobs:
           docker compose -f compose.yaml config -q
           docker compose -f compose.yaml -f compose.discovery.yaml config -q
           docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml config -q
+          docker compose -f examples/hello-js-monitor.yaml config -q
       - name: Check exposed ports and security invariants
         shell: bash
         run: |
@@ -56,5 +57,18 @@ jobs:
             assert any(m['source'] == directory and m['target'] == directory and m.get('read_only') for m in mounts), f'missing read-only source mount: {directory}'
           command = services['docklantern']['command']
           assert '-roots' in command and command[command.index('-roots') + 1] == '/srv/apps/hello-py,/srv/apps/hello-js'
+          # Unlike legacy registration, label-only monitoring requires no
+          # per-project mounts or -roots changes in DockLantern.
+          base = json.loads(__import__('subprocess').check_output([
+              'docker','compose','-f','compose.yaml','-f','compose.discovery.yaml',
+              'config','--format','json'], text=True))
+          app = base['services']['docklantern']
+          assert '-roots' not in app['command']
+          assert not any('/srv/apps/' in str(v) for v in app.get('volumes', []))
+          label_fixture = json.loads(__import__('subprocess').check_output([
+              'docker','compose','-f','examples/hello-js-monitor.yaml',
+              'config','--format','json'], text=True))
+          assert label_fixture['services']['web']['labels']['com.docklantern.monitor'] == 'true'
+          assert label_fixture['services']['web']['labels']['com.docklantern.interval'] == '10m'
           print('Compose validation and security checks passed')
           PY

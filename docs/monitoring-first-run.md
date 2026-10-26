@@ -1,142 +1,92 @@
-# First monitored Compose projects: beginner walkthrough
+# First monitored Compose service — label-based onboarding (beta.3)
 
-This optional setup builds on the main [installation guide](../README.md). You must have:
-- A working DockLantern dashboard and discovery proxy.
-- Two existing Docker Compose projects running on the same host (examples here: `hello-py` and `hello-js`).
-- Permission to inspect the projects' original Compose file(s) and any needed `.env`.
+**Release status:** This workflow is available in **DockLantern v0.1.0-beta.3 or newer, once that image is published and explicitly installed**. The Compose deployment currently pins **v0.1.0-beta.2**, which requires [legacy source registration](legacy-manual-registration.md). Do not assume the new feature works with the beta.2 image.
 
-**Do not commit actual hostnames, host paths, environment files, or passwords.** Everything below uses generic example paths. Example directory names can be changed to suit your deployment.
+This guide assumes a working DockLantern deployment with **`compose.yaml` + `compose.discovery.yaml`**, a private Docker socket proxy, periodic discovery (`-scan-every 60s`) and a running registry monitor. Follow the [README](../README.md) for host/network/TLS prerequisites. All operations in this guide are on the **existing application Compose project**, not in the DockLantern deployment directory.
 
-## 1. Identify existing Compose sources
+## 1. Add one monitoring label to the target service
 
-Run these commands on the **host**, replacing the example container names if necessary:
+For example, in `hello-js` or `hello-py`'s own Compose file:
+
+```yaml
+services:
+  web:
+    image: davidslusser/hello-js:latest
+    labels:
+      com.docklantern.monitor: "true"
+      # Optional. Omit this to use the default monitoring interval:
+      com.docklantern.interval: "10m"
+```
+
+Only the `com.docklantern.monitor` label is required. The optional interval accepts whole-second Go duration syntax from `60s` to `24h`. The default is initially five minutes, configurable from **Settings → Monitoring defaults**.
+
+**Do not add these labels to the DockLantern container.** Add them to each *application service you want monitored*. You do **not** need to register Compose sources, mount the app directory into DockLantern, change `.env`, or extend `-roots`.
+
+## 2. Apply the changed target Compose configuration
+
+From that service's own deployment directory, run:
 
 ```bash
-docker inspect hello-py-web-1 --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
-docker inspect hello-py-web-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
-docker inspect hello-js-web-1 --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
-docker inspect hello-js-web-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+docker compose config -q
+docker compose up -d --no-deps web
 ```
 
-Record the **exact absolute paths**. If the labels are absent, identify the source files with the service owner before proceeding. Check each Compose file for `env_file:`, other referenced Compose files, and any secrets. Mount only the files/directories required for monitoring and registration; the read-only mount grants the DockLantern process read access to their contents.
+Compose may recreate **the target application container** to apply its changed labels; that is expected. It must **not** recreate DockLantern. Using `--no-deps` prevents starting dependent services unnecessarily.
 
-To display only non-commented `.env` **key names** (never post the actual values):
+To verify actual container labels:
 
 ```bash
-grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /srv/apps/hello-py/.env | cut -d= -f1
+docker compose ps -q web | xargs -r docker inspect --format '{{index .Config.Labels "com.docklantern.monitor"}}'
 ```
 
-Replace `/srv/apps/hello-py` with the actual location on your machine. Variable names alone are not proof there are no secrets; inspect the file privately.
+Expected: `true`. If you have scaled replicas, every replica of the service must have consistent image/platform and monitoring labels.
 
-## 2. Create the private registration overlay
+## 3. Confirm automatic enrollment
 
-Go to the DockLantern deployment directory:
+With the existing Docker socket proxy and inventory scanner active, DockLantern discovers the service during its next scan (typically within 60 seconds). Open the authenticated HTTPS dashboard and navigate to **Services**. Verify that the Compose project/service appears, with enrollment source **Docker label** and the expected effective interval.
 
-```bash
-cd ~/deployments/docklantern
-cp compose.projects.example.yaml compose.projects.yaml
-nano .env
+From DockLantern **Settings → Service monitoring**, you can change the interval without restarting DockLantern or the target service:
+
+- **Save override:** takes precedence over a Docker interval label.
+- **Reset override:** returns to the Docker interval label, or the global default if the label is absent.
+- **Pause / Resume:** changes registry monitoring scheduling only.
+- For an **unlabeled** discovered service, **Enable in GUI** explicitly enrolls it (provided it is running with valid image/platform metadata).
+
+Configuration precedence: **GUI override > Docker label > global default**. An interval override alone does not opt a service into monitoring.
+
+## 4. Understand registry and image status
+
+DockLantern reads OCI manifests and compares their digests. `first_seen`, `changed`, and `unchanged` are **remote tag observations**; `changed` does not guarantee a newer software version. Container image assessments require separate verifiable digest provenance and may remain **unknown**.
+
+The Events page shows remote digest changes as **image/platform-scoped events**, not as an arbitrary project/service action. `Webhook pending (0 attempts)` is notification state; it is not a registry-check failure.
+
+DockLantern remains **monitoring-only**: it does not pull, restart, update or redeploy monitored services.
+
+## 5. Disable or remove monitoring
+
+To enforce an explicit opt-out, change the target service label and redeploy **only that service**:
+
+```yaml
+labels:
+  com.docklantern.monitor: "false"
 ```
 
-Set the paths for **your host**:
+This blocks registry monitoring even if a prior GUI opt-in or legacy policy exists. Removing `true` from a label-owned service also stops label-owned monitoring (unless separately GUI-enrolled). History and settings remain stored for diagnostics.
 
-```dotenv
-HELLO_PY_PROJECT_DIR=/srv/apps/hello-py
-HELLO_JS_PROJECT_DIR=/srv/apps/hello-js
-```
+If an image reference is unsupported, platform metadata is missing, replicas conflict, or label values are invalid, DockLantern shows an inactive/error state and does not activate the watch. A transient discovery-proxy failure must not be mistaken for removing every service.
 
-Replace the sample paths with the actual directories from Step 1. The sample overlay:
-- Binds both directories into DockLantern **read-only**.
-- Uses identical source and destination absolute paths because DockLantern validates absolute Compose file locations.
-- Prevents Docker from silently creating a missing host directory (`create_host_path: false`).
-- Adds both source directories to the explicit `-roots` allowlist.
-- Keeps `-scan-every 60s` and `-run-monitor` active.
+## Existing beta.2 registrations and future deployment features
 
-**Do not modify or mount anything into the Docker socket-proxy service.** The private `compose.projects.yaml` file and `.env` are ignored by Git. The example overlay does not enable Docker update execution.
+An upgraded beta.2 installation retains its **legacy manual registrations, monitoring policies and history**. It is not required to remove any local `compose.projects.yaml` overlay as part of the beta.3 upgrade. Such source mounts remain relevant to older registrations and separately authorized future Compose deployment functionality, **but are not needed for new label-based registry monitoring**.
 
-## 3. Validate and apply (DockLantern only)
+If you already use manual registration, see [legacy source registration](legacy-manual-registration.md). Before upgrading the running image, take a **consistent SQLite backup** and review the [operations guide](operations.md). A beta.2 binary may not understand the migrated beta.3 SQLite schema; rollback requires the matching pre-upgrade backup, not just changing the image tag.
 
-```bash
-docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml config -q
-docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml up -d --no-deps docklantern
-docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.yaml ps
-```
+## Troubleshooting
 
-Expected: Docker Compose validation shows no errors, DockLantern is `Up (healthy)`, and the socket proxy remains up. Existing hello services and Traefik are not restarted.
+- **No service in inventory:** Check that `compose.discovery.yaml` is active, the proxy is healthy and `-scan-every` is nonzero; inspect DockLantern's discovery worker status and logs.
+- **Service appears, no monitoring policy:** Inspect labels on the **running container**, not just YAML. Check the inactive reason in Settings. `monitor=false`, missing image platform and invalid durations fail closed.
+- **No registry result yet:** Check the monitor worker, registry connectivity, credentials for private images, and next-check timestamp. Discovery and registry checking are separate periodic loops.
+- **Changed GUI interval not applied:** Verify whether the service is paused or rate-limited; the scheduler preserves registry backoff even after changing the interval.
+- **No original Compose files mounted into DockLantern:** That is expected for label-only monitoring.
 
-**Use all three `-f` arguments on future Compose commands that recreate DockLantern.** If you leave off the third overlay, Compose can remove the source mounts and `-roots` settings.
-
-## 4. Register each project in the dashboard
-
-Open the DockLantern Settings page over HTTPS. Fill out **Register project**. Example for `hello-py`:
-
-| Form field | Value (example; use your actual host path) |
-| --- | --- |
-| Compose project name | `hello-py` |
-| Project directory | `/srv/apps/hello-py` |
-| Compose files | `/srv/apps/hello-py/docker-compose.yaml` |
-| Services | `web` |
-| Environment files | `/srv/apps/hello-py/.env` (if required) |
-| Profiles | Leave blank if unused |
-
-The project name and service must match the actual Compose labels. Repeat for `hello-js`, using its own absolute files and `web` service.
-
-Expected message: **Project registered for monitoring.** Registration is not an authorization to deploy or restart containers. The project may already appear in *Discovered services* before registration; they are distinct states.
-
-If registration reports **CSRF validation failed**:
-1. Reload the Settings page after any container restart because CSRF tokens are generated per process.
-2. Check the browser's Network tab on `POST /settings/projects`. The `Origin` should match the dashboard HTTPS origin, and `Sec-Fetch-Site` should be `same-origin`.
-3. Check `GET /settings` response header `Referrer-Policy`. Use `same-origin` for this version. A `no-referrer` response caused Chrome to send `Origin: null` and reject legitimate form submissions.
-4. Do **not** disable CSRF validation or relax CSP. See [troubleshooting](troubleshooting.md).
-
-## 5. Create monitoring schedules
-
-For each registered service, choose **Settings → Configure watched service**. Example values:
-
-| Field | hello-py | hello-js |
-| --- | --- | --- |
-| Project | `hello-py` | `hello-js` |
-| Service | `web` | `web` |
-| Tagged image | `davidslusser/hello-py:latest` | `davidslusser/hello-js:latest` |
-| Platform | `linux/amd64` (check your host) | `linux/amd64` (check your host) |
-| Interval (seconds) | `300` | `300` |
-| Pause monitoring | Unchecked | Unchecked |
-
-Confirm the local image architecture before setting a platform:
-
-```bash
-docker image inspect davidslusser/hello-py:latest --format '{{.Os}}/{{.Architecture}}'
-docker image inspect davidslusser/hello-js:latest --format '{{.Os}}/{{.Architecture}}'
-```
-
-Save each monitoring policy. Within the configured interval, the Overview's Registry Monitoring section should show `first_seen`, a platform-specific digest, and the check time. Use your actual image names if these are not the images running in your Compose projects.
-
-## 6. Test detection *without* updating a container
-
-Record one running service's identity before publishing an image:
-
-```bash
-docker inspect hello-js-web-1 --format 'Container ID: {{.Id}}
-Image ID: {{.Image}}
-Started at: {{.State.StartedAt}}'
-```
-
-Publish a **different** Docker Hub manifest behind the watched tag (e.g. `hello-js:latest`) using its normal CI/CD workflow. **Do not pull or deploy that image on the test host.** After the next scheduled registry check, DockLantern should report `changed` for a digest change.
-
-Wait for one more check with no further image publications. Expected status: `unchanged`. In **Events**, a changed digest should produce one `remote_digest_changed` event; another unchanged check should not duplicate it.
-
-Run the same `docker inspect` command again: the running container ID, image ID, and started-at timestamp should match the original values.
-
-### Observed beta test outcome (2026-10-25)
-
-- `hello-js:latest` was recorded as `first_seen` at 22:14 UTC.
-- A new Docker Hub digest resulted in `changed` at 22:19 UTC.
-- The next check returned `unchanged` at 22:24 UTC.
-- Exactly one `remote_digest_changed` event was recorded; the container ID, image ID, and start time remained unchanged.
-- **Known limitation:** the generic registry-change event displayed a blank project/service association (`/ `). That is a separate application attribution issue to address in a later beta.
-
-This confirms OCI digest monitoring and event persistence for the test, **not** that DockLantern updates containers or understands semantic version ordering. The beta remains monitoring-only.
-
-## 7. Notification status is separate
-
-An event can show `pending (0)` when outbound webhook notifications are not configured. This does not indicate that the registry check failed. No webhook delivery test is included in this walkthrough.
+Never expose the Docker proxy's internal TCP port 2375, and keep access to the dashboard behind trusted HTTPS.

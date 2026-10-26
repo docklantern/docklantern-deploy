@@ -54,6 +54,24 @@ docker compose -f compose.yaml -f compose.discovery.yaml logs --tail=100 docklan
 
 Test the login page, `/readyz`, inventory and registered projects. **Do not roll back application versions against an incompatible migrated database**; use your tested restore plan if necessary.
 
+## Beta.2 → beta.3 upgrade checklist (not yet authorized)
+
+**The repository currently pins beta.2. Do not change the image to `v0.1.0-beta.3` until the beta.3 release workflow has actually published a tested image and the release is approved.**
+
+Beta.3 introduces automatic monitoring enrollment from target Compose service labels and a **SQLite schema version 3**. A one-way database migration means that simply changing the image back to beta.2 is not a safe rollback.
+
+1. Capture a **consistent beta.2 SQLite backup** while the existing beta.2 app is running (procedure below), verify `PRAGMA integrity_check` returns `ok` on the backup, and copy the file to protected storage outside the VPS.
+2. Record the current beta.2 image tag/digest, hostname, and Compose flags. **If you currently use `compose.projects.yaml`, keep passing that third overlay when upgrading.** Do not accidentally remove legacy source mounts or registrations.
+3. Verify the beta.3 image digest, multi-platform published manifests, reviewed GitHub CI/security jobs and release notes.
+4. Only after operator approval, update the exact app image tag/digest in `compose.yaml`. Validate with `docker compose -f compose.yaml -f compose.discovery.yaml config -q`, adding `-f compose.projects.yaml` if already used.
+5. Pull/recreate **only DockLantern**, without restarting Traefik or your other Compose applications. Check readiness, original beta.2 registration/history, and new Services/Settings/Event History.
+6. On a separately managed test Compose service (e.g., hello-js), add `com.docklantern.monitor: "true"` to that service's Compose labels and recreate **only that target service**. The next scan should enroll it automatically without editing the DockLantern Compose project.
+7. Test global default, label interval, GUI override/reset and pause/resume; verify no DockLantern-initiated container pulls/restarts and that Docker's socket proxy still denies mutation methods.
+
+**Rollback:** stop DockLantern, restore your **entire pre-upgrade beta.2 SQLite snapshot** into the stopped Docker volume (move aside `.db`, `-wal`, `-shm` files before copying), select the exact prior beta.2 image digest/tag and start a single app process. Confirm all registrations, policies, history and readiness. **Do not run an older binary against an already migrated beta.3 database.**
+
+Use the [beta.3 first-run guide](monitoring-first-run.md) after a beta.3 image is installed. Existing source-mounted policies remain supported via the [legacy beta.2 guide](legacy-manual-registration.md). The [application release checklist](https://github.com/docklantern/docklantern/blob/main/docs/deployment/beta3-release-checklist.md) records the CI and manual readiness gates.
+
 ## Consistent SQLite backup while running
 
 DockLantern stores its database in the named Docker volume `docklantern_docklantern_data`. The application supports `-backup`, which makes a consistent SQLite snapshot of committed transactions (including WAL changes). Do **not** simply `cp` the live database file.
