@@ -4,6 +4,14 @@ These commands assume you have completed [the README](../README.md) and are in `
 
 **Using registered Compose projects?** If you enabled the optional, local `compose.projects.yaml` overlay described in [monitoring-first-run.md](monitoring-first-run.md), append `-f compose.projects.yaml` to **every** `docker compose` command on this page, after the two existing `-f` flags. This especially matters for `up -d` and `run`: otherwise you could recreate DockLantern without its read-only source mounts and `-roots` allowlist. The overlay is excluded from Git and must be maintained on the host.
 
+## Beta.4.1 → beta.5: take the backup before switching the Compose image
+
+The deployment repo now proposes **beta.5**. Upgrading an existing beta.4.1 installation migrates its SQLite database from **schema v3 to v5** (v4 and v5 migrations). A downgrade of only the image is unsafe; restoring the earlier application requires restoring a **matching pre-migration SQLite backup** as well.
+
+**Critical ordering:** run the current beta.4.1 application's consistent `-backup` command and verify/off-host-copy that snapshot **before** updating the VPS Compose file to beta.5. After checkout, `docker compose run ... -backup` uses the **new** Compose image and may open/migrate the database *before taking a snapshot*. Do not assume a live file copy captures WAL state.
+
+Read [beta.5 upgrade gates and restore precautions](beta5-upgrade.md) before executing any on-VPS commands. All backup, image pull/recreate and rollback operations still require separate operator approval. Merging a deployment PR alone is not permission to upgrade the server.
+
 ## Common commands
 
 Show the services managed by this Compose project:
@@ -56,7 +64,7 @@ Test the login page, `/readyz`, inventory and registered projects. **Do not roll
 
 ## Historical beta.2 → beta.3 upgrade checklist
 
-**Historical procedure:** This section documents migration from beta.2 to beta.3. The current `compose.yaml` pins **beta.4.1** by immutable multi-platform digest. Applying this repository to an existing VPS or changing the running image remains an operator-approved operation.
+**Historical procedure:** This section documents migration from beta.2 to beta.3. The deployment repository now proposes **beta.5** by immutable multi-platform digest, but any particular running VPS may still use beta.4.1. Applying a new image to an existing VPS remains an operator-approved operation.
 
 Beta.3 introduces automatic monitoring enrollment from target Compose service labels and a **SQLite schema version 3**. A one-way database migration means that simply changing the image back to beta.2 is not a safe rollback.
 
@@ -77,6 +85,8 @@ Use the [beta.3 first-run guide](monitoring-first-run.md) after a beta.3 image i
 DockLantern stores its database in the named Docker volume `docklantern_docklantern_data`. The application supports `-backup`, which makes a consistent SQLite snapshot of committed transactions (including WAL changes). Do **not** simply `cp` the live database file.
 
 The following example creates a root-owned directory for backup output, then runs a **one-time backup command** in a new short-lived container. It does not start another monitoring scheduler.
+
+**For beta.5 upgrades:** The following generic Compose command is safe as a pre-upgrade v3 backup **only if the active VPS Compose file still selects the old beta.4.1 image**. If the file has already been changed to beta.5, do not run it; follow [beta.5 upgrade backup ordering](beta5-upgrade.md#why-backup-ordering-matters) and select a verified old-image backup procedure. All live backup operations require authorization.
 
 ```bash
 # Prepare a private backup directory, owned by root.

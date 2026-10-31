@@ -4,7 +4,7 @@ name: docklantern
 
 services:
   docklantern:
-    image: davidslusser/docklantern:v0.1.0-beta.4.1@sha256:54dcdfc315cf55738e26084baa2aff97dc8ea15fc3dcca8e895af922f58a0092
+    image: davidslusser/docklantern:v0.1.0-beta.5@sha256:d36784df4eebc29fb45c3d03441101b0d81078fa971eecfe7e661efc18608c16
     restart: unless-stopped
     init: true
     command: ["-mode", "serve", "-db", "/data/docklantern.db", "-listen", "0.0.0.0:8787", "-run-monitor"]

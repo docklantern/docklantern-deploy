@@ -8,12 +8,12 @@ This repository holds **deployment configuration**, not DockLantern's source cod
 
 ## What you will deploy
 
-- **DockLantern**: web dashboard and registry monitor, pinned to the published **v0.1.0-beta.4.1** Docker Hub image and its release-workflow-recorded immutable multi-platform index digest. See the [beta.4.1 prerelease](https://github.com/docklantern/docklantern/releases/tag/v0.1.0-beta.4.1).
+- **DockLantern**: web dashboard and registry monitor, pinned to the published **v0.1.0-beta.5** Docker Hub image and its release-workflow-recorded immutable multi-platform index digest. See the [beta.5 prerelease](https://github.com/docklantern/docklantern/releases/tag/v0.1.0-beta.5).
 - **Docker socket proxy**: a separate container that permits limited, read-only Docker API requests for container discovery.
 - **SQLite database**: durable application state stored in a Docker named volume.
 - **Traefik route**: HTTPS access through an **already-running** reverse proxy. This repository does not deploy or restart Traefik.
 
-DockLantern beta.4.1 remains **monitoring-only**: it does not automatically pull, update, or recreate other services. It retains the beta.3 label-first enrollment for Compose services carrying `com.docklantern.monitor: "true"`, without original Compose source mounts, project registration, or DockLantern configuration changes. Unlabeled services remain opt-out by default. The legacy beta.2 registration path is still supported.
+DockLantern beta.5 remains **monitoring-only**: it does not automatically pull, update, or recreate other services. It retains the beta.3 label-first enrollment for Compose services carrying `com.docklantern.monitor: "true"`, without original Compose source mounts, project registration, or DockLantern configuration changes. Unlabeled services remain opt-out by default. The legacy beta.2 registration path is still supported.
 
 ## Files and folders
 
@@ -32,9 +32,18 @@ DockLantern beta.4.1 remains **monitoring-only**: it does not automatically pull
     ├── host-prerequisites.md    # Docker, Traefik, DNS/TLS, external networks
     ├── monitoring-first-run.md # Beta.3 label-based monitoring walkthrough
     ├── operations.md            # Start, stop, upgrade, backup and restore
+    ├── beta5-upgrade.md         # Approved-upgrade gates, v3→v5 backup and rollback
     ├── legacy-manual-registration.md # Original beta.2 source-mount registration walkthrough
     └── troubleshooting.md       # Common failures and actual fixes
 ```
+
+## Existing beta.4.1 installations — read before upgrading
+
+**Do not apply the new Compose image pin to an existing VPS until a separate upgrade/deployment is explicitly approved.** This repository now describes beta.5 as the desired image; it does not mean the running host has been upgraded. Beta.5 introduces **forward-only SQLite migrations v3 → v4 → v5**. An older beta.4.1 binary cannot safely read the migrated v5 database.
+
+Before pulling, recreating, or running **any** container using the new beta.5 Compose definition, take and verify a **consistent SQLite backup using the still-running beta.4.1 image/configuration**, and preserve a copy off-host. A `docker compose run ... -backup` command executed **after** this new Compose file is checked out may start beta.5 and migrate the live database **before taking the backup**.
+
+Follow the [beta.5 upgrade and rollback checklist](docs/beta5-upgrade.md) and [application acceptance plan](https://github.com/docklantern/docklantern/blob/main/docs/deployment/beta5-test-vps-acceptance.md). Merging this deployment PR alone does not authorize a deployment, database migration, target-service restart or operator acceptance.
 
 ## Step-by-step first installation
 
@@ -186,9 +195,9 @@ Open `https://docklantern.example.com/` in your browser, using your actual hostn
 
 Confirm you can see running Docker containers in the inventory. They may be **discovered but unregistered**. A newly initialized database does not magically restore registrations or history from an earlier Docker volume.
 
-The current deployment configuration pins **beta.4.1**, which retains automatic monitoring enrollment from Docker labels or the GUI and adds the image-first dashboard. Existing source registrations and monitoring history remain supported; follow the [legacy registration guide](docs/legacy-manual-registration.md) only when maintaining those registrations.
+The deployment repository now pins **beta.5**, which retains label-first and GUI monitoring enrollment and the image-first dashboard, and adds watched-tag override/reset and background Check Now. Existing source registrations and monitoring history remain supported; follow the [legacy registration guide](docs/legacy-manual-registration.md) only when maintaining those registrations.
 
-With **beta.4.1** installed, **monitoring-only** enrollment needs no source files or registration: add `com.docklantern.monitor: "true"` to the *target application's* Compose service, redeploy only that service, and let the existing discovery scanner pick it up. No DockLantern Compose changes or DockLantern restart. See [beta.3 label-first walkthrough](docs/monitoring-first-run.md).
+With **beta.5** installed, **monitoring-only** enrollment needs no source files or registration: add `com.docklantern.monitor: "true"` to the *target application's* Compose service, redeploy only that service, and let the existing discovery scanner pick it up. No DockLantern Compose changes or DockLantern restart. See [beta.3 label-first walkthrough](docs/monitoring-first-run.md).
 
 ### Step 9 — Optional legacy source registration (beta.2 compatibility)
 
@@ -224,6 +233,7 @@ The `web` network, IPv6 egress network, DNS records, Traefik configuration, and 
 - [Host prerequisites and network considerations](docs/host-prerequisites.md)
 - [Beta.3: opt in a Compose app with one Docker service label](docs/monitoring-first-run.md) — included in the published beta.3 release
 - [Beta.2: source-based registration and legacy policy management](docs/legacy-manual-registration.md)
+- [Beta.5 upgrade, migration and rollback safety](docs/beta5-upgrade.md)
 - [Normal operations, upgrading, and backing up SQLite](docs/operations.md)
 - [Troubleshooting the actual issues seen during setup](docs/troubleshooting.md)
 
