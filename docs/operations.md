@@ -54,9 +54,9 @@ docker compose -f compose.yaml -f compose.discovery.yaml logs --tail=100 docklan
 
 Test the login page, `/readyz`, inventory and registered projects. **Do not roll back application versions against an incompatible migrated database**; use your tested restore plan if necessary.
 
-## Beta.2 → beta.3 upgrade checklist
+## Historical beta.2 → beta.3 upgrade checklist
 
-**This repository now pins the published beta.3 image with the verified multi-architecture manifest digest. The image is released, but updating any additional VPS remains an operator-approved operation.**
+**Historical procedure:** This section documents migration from beta.2 to beta.3. The current `compose.yaml` pins **beta.4.1** by immutable multi-platform digest. Applying this repository to an existing VPS or changing the running image remains an operator-approved operation.
 
 Beta.3 introduces automatic monitoring enrollment from target Compose service labels and a **SQLite schema version 3**. A one-way database migration means that simply changing the image back to beta.2 is not a safe rollback.
 
