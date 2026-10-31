@@ -37,6 +37,7 @@ jobs:
           docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml config --format json > /tmp/docklantern-compose.json
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
 
           c = json.loads(Path('/tmp/docklantern-compose.json').read_text())
@@ -46,6 +47,12 @@ jobs:
           assert not services['docker-socket-proxy'].get('ports'), 'Docker proxy must not publish port 2375'
           assert services['docklantern']['read_only'] is True
           assert 'ALL' in services['docklantern']['cap_drop']
+          # Deployment must use an immutable Docker Hub release index, not
+          # a mutable :latest or unpinned version tag.
+          assert re.fullmatch(
+              r'davidslusser/docklantern:v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?@sha256:[0-9a-f]{64}',
+              services['docklantern']['image']
+          ), 'DockLantern app image must be versioned and pinned to an immutable sha256 digest'
           assert services['docker-socket-proxy']['environment']['POST'] == '0'
           assert c['networks']['docker-discovery']['internal'] is True
           assert c['networks']['web']['external'] is True
