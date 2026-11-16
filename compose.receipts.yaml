@@ -1,0 +1,13 @@
+# Optional sanitized host-executor Activity receipts.
+# Only use after operator approval and root-owned host outbox provisioning.
+# This does not mount Docker, host registrations, journal or executor into
+# the monitor. Compose must never create a missing host directory implicitly.
+services:
+  docklantern:
+    volumes:
+      - type: bind
+        source: /var/lib/docklantern/handoff/receipts
+        target: /run/docklantern/executor-receipts
+        read_only: true
+        bind:
+          create_host_path: false

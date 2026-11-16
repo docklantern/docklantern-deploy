@@ -15,6 +15,17 @@ This repository holds **deployment configuration**, not DockLantern's source cod
 
 DockLantern beta.5 remains **monitoring-only**: it does not automatically pull, update, or recreate other services. It retains the beta.3 label-first enrollment for Compose services carrying `com.docklantern.monitor: "true"`, without original Compose source mounts, project registration, or DockLantern configuration changes. Unlabeled services remain opt-out by default. The legacy beta.2 registration path is still supported.
 
+## Optional release-candidate Activity receipt view
+
+A separately approved host executor can publish sanitized deployment receipts
+without granting the monitoring container any Docker write authority. The new
+[`compose.receipts.yaml`](compose.receipts.yaml) overlay mounts **only** those
+public receipts read-only, with host-directory auto-creation disabled. It is
+not enabled by default, does not install timers or change the pinned beta.5
+image, and must not be applied to a VPS without a new deployment approval.
+See [the gated receipt mount checklist](docs/rc-receipt-overlay.md) before
+using it with a reviewed release candidate.
+
 ## Files and folders
 
 ```text

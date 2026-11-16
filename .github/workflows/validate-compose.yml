@@ -29,6 +29,8 @@ jobs:
           docker compose -f compose.yaml config -q
           docker compose -f compose.yaml -f compose.discovery.yaml config -q
           docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml config -q
+          docker compose -f compose.yaml -f compose.discovery.yaml -f compose.receipts.yaml config -q
+          docker compose -f compose.yaml -f compose.discovery.yaml -f compose.projects.example.yaml -f compose.receipts.yaml config -q
           docker compose -f examples/hello-js-monitor.yaml config -q
       - name: Check exposed ports and security invariants
         shell: bash
@@ -77,5 +79,26 @@ jobs:
               'config','--format','json'], text=True))
           assert label_fixture['services']['web']['labels']['com.docklantern.monitor'] == 'true'
           assert label_fixture['services']['web']['labels']['com.docklantern.interval'] == '10m'
+          receipts = json.loads(__import__('subprocess').check_output([
+              'docker','compose','-f','compose.yaml','-f','compose.discovery.yaml',
+              '-f','compose.receipts.yaml','config','--format','json'], text=True))
+          assert set(receipts['services']) == {'docklantern', 'docker-socket-proxy'}
+          assert receipts['services']['docker-socket-proxy']['environment']['POST'] == '0'
+          assert not receipts['services']['docklantern'].get('ports')
+          assert not receipts['services']['docker-socket-proxy'].get('ports')
+          mounts = receipts['services']['docklantern']['volumes']
+          expected = [m for m in mounts
+                      if m.get('target') == '/run/docklantern/executor-receipts']
+          assert len(expected) == 1, 'expected one sanitized receipt mount'
+          receipt_mount = expected[0]
+          assert receipt_mount['type'] == 'bind'
+          assert receipt_mount['source'] == '/var/lib/docklantern/handoff/receipts'
+          assert receipt_mount['read_only'] is True
+          assert receipt_mount.get('bind', {}).get('create_host_path') is False
+          assert len(mounts) == len(app['volumes']) + 1, 'unexpected additional host mounts'
+          for forbidden in ('/var/run/docker.sock', '/var/lib/docklantern/executor',
+                            '/var/lib/docklantern/executor/registrations',
+                            '/var/lib/docklantern/executor/journal'):
+              assert all(m.get('source') != forbidden for m in mounts), forbidden
           print('Compose validation and security checks passed')
           PY
