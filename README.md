@@ -24,7 +24,12 @@ public receipts read-only, with host-directory auto-creation disabled. It is
 not enabled by default, does not install timers or change the pinned beta.5
 image, and must not be applied to a VPS without a new deployment approval.
 See [the gated receipt mount checklist](docs/rc-receipt-overlay.md) before
-using it with a reviewed release candidate.
+using it with a reviewed release candidate. Provision the root-owned 0755
+outbox before the first automatic-update timer is enabled; preserve the
+complete ordered Compose stack, including the independently reviewed RC
+image overlay. The checked-in beta.5 pin is not an automatic-update RC.
+For fresh-host acceptance, follow the [application clean-VPS checklist](https://github.com/docklantern/docklantern/blob/main/docs/deployment/first-release-clean-vps-checklist.md)
+when available on main.
 
 ## Files and folders
 
